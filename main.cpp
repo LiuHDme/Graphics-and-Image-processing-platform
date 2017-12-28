@@ -30,8 +30,14 @@ g2DropDown* StyleController = NULL;
 g2Spinner* PositionSliders[3];
 g2Label* PositionLabels[3];     // 标题
 
+// 平移、旋转和缩放
+g2Spinner* Transformation2DSliders[4];
+g2Label* TranslationLabels[2];
+
 // 距离和斜度
 float Distance = 0, Pitch = 0, Yaw = 0;
+// 平移量、旋转量和缩放量
+float XTranslation = 0, YTranslation = 0, Rotate = 0, Scale = 1;
 
 // 颜色的滑尺和标题
 g2Slider* ColorSliders[3];
@@ -40,6 +46,9 @@ g2Label* ColorLabels[3];
 // 裁剪控制按钮
 g2RadioGroup* ClippedContreller = NULL;
 
+// 2D 图形参数控件
+g2DropDown* GraphController = NULL;
+
 // 图像，依次为：原图、灰度图、直方图均衡化后的图、傅里叶变换后的图（无法直接查看）、反傅里叶变换后的图
 Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
 
@@ -47,55 +56,60 @@ Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
 
 // 渲染
 void Render() {
-    if (DimensionContreller->GetSelectionIndex() == 0) {
-        // 清除后台缓冲
-        glClearColor(0.92f, 0.94f, 0.97f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-    } else {
-        // 定义裁减平面方程系数，这里平面方程为x = 0
-        GLdouble eqn1[4] = {1.0, 0.0, 0.0, 0.0};
-        GLdouble eqn2[4] = {1.0, 1.0, 0.0, 0.0};
-        
-        // 清除后台缓冲
-        glClearColor(0.92f, 0.94f, 0.97f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-        
-        // 准备 3D 渲染
-        glMatrixMode(GL_PROJECTION);
-        glLoadIdentity();
-        gluPerspective(60.0f, float(WindowWidth) / float(WindowHeight), 1.0f, 1000.0f);
-        glMatrixMode(GL_MODELVIEW);
-        glEnable(GL_DEPTH);
-        
-        // 设置点的大小
-        glPointSize(3.0f);
-        
-        // 更新距离和倾斜度
-        Distance = PositionSliders[0]->GetFloat();
-        Pitch = PositionSliders[1]->GetFloat();
-        Yaw = PositionSliders[2]->GetFloat();
-        
-        glPushMatrix();
-        
-            // 设置裁减平面
-            if (ClippedContreller->GetSelectionIndex() == 1) {
-                glClipPlane(GL_CLIP_PLANE0, eqn1);
-                glEnable(GL_CLIP_PLANE0);
-            } else if (ClippedContreller->GetSelectionIndex() == 2) {
-                //设置裁减平面
-                glClipPlane(GL_CLIP_PLANE0, eqn2);
-                glEnable(GL_CLIP_PLANE0);
-            } else {
-                glDisable(GL_CLIP_PLANE0);
-            }
-        
+
+    // 定义裁减平面方程系数
+    GLdouble eqn1[4] = {1.0, 0.0, 0.0, 0.0};
+    GLdouble eqn2[4] = {1.0, 1.0, 0.0, 0.0};
+    
+    // 清除后台缓冲
+    glClearColor(0.92f, 0.94f, 0.97f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+    
+    // 准备渲染
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    gluPerspective(60.0f, float(WindowWidth) / float(WindowHeight), 1.0f, 1000.0f);
+    glMatrixMode(GL_MODELVIEW);
+    glEnable(GL_DEPTH);
+    
+    // 设置点的大小
+    glPointSize(3.0f);
+    
+    // 设置平移量和旋转量
+    XTranslation = Transformation2DSliders[0]->GetFloat();
+    YTranslation = Transformation2DSliders[1]->GetFloat();
+    Rotate = Transformation2DSliders[2]->GetFloat();
+    Scale = Transformation2DSliders[3]->GetFloat();
+    
+    
+    // 更新距离和倾斜度 (3D)
+    Distance = PositionSliders[0]->GetFloat();
+    Pitch = PositionSliders[1]->GetFloat();
+    Yaw = PositionSliders[2]->GetFloat();
+    
+    glPushMatrix();
+    
+        // 设置裁减平面
+        if (ClippedContreller->GetSelectionIndex() == 1) {
+            glClipPlane(GL_CLIP_PLANE0, eqn1);
+            glEnable(GL_CLIP_PLANE0);
+        } else if (ClippedContreller->GetSelectionIndex() == 2) {
+            //设置裁减平面
+            glClipPlane(GL_CLIP_PLANE0, eqn2);
+            glEnable(GL_CLIP_PLANE0);
+        } else {
+            glDisable(GL_CLIP_PLANE0);
+        }
+
+        // 设置颜色
+        glColor3f(ColorSliders[0]->GetProgress(), ColorSliders[1]->GetProgress(), ColorSliders[2]->GetProgress());
+
+        // 根据用户的选择绘制图形
+        if (DimensionContreller->GetSelectionIndex() == 1) {
             // 改变位置
             gluLookAt(-10.0f * Distance, 4 * Distance, -5.0f * Distance, 0, 0, 0, 0, 1, 0);
             glRotatef(Pitch, 1, 0, 0);
             glRotatef(Yaw, 0, 1, 0);
-            
-            // 设置颜色
-            glColor3f(ColorSliders[0]->GetProgress(), ColorSliders[1]->GetProgress(), ColorSliders[2]->GetProgress());
             
             // 改变渲染方式
             if(StyleController->GetSelectionIndex() == 0)
@@ -108,21 +122,36 @@ void Render() {
             // 绘制 3D 图形
             glutSolidTeapot(3);
         
-        glPopMatrix();
-    }
+        } else {
+            
+            // 重新设置位置，不产生 3D 效果
+            gluLookAt(0, 0, 100, 0, 0, 0, 0, 1, 0);
+            
+            // 平移、旋转和缩放
+            glTranslatef(XTranslation, YTranslation, 0);
+            glRotatef(Rotate, 0, 0, 1);
+            glScalef(Scale, Scale, 1);
+            
+            // 绘制 2D 图形
+            glBegin(GL_LINE_LOOP);
+                glVertex2i(-10, 0);
+                glVertex2i(10, 0);
+                glVertex2i(0, 10);
+            glEnd();
+
+        }
     
-    // Update the color labels
+    glPopMatrix();
+    
+    // 更新颜色选择滑块
     for (int i = 0; i < 3; i++) {
-        // Create a text buffer to place the fraction in it
-        // Note the embedded ternary-comparison order, pretty awesome
         char Buffer[256];
         sprintf(Buffer, "Color %c: %.2f%%", (i == 0 ? 'R' : (i == 1 ? 'G' : 'B')), ColorSliders[i]->GetProgress() * 100.0f);
         ColorLabels[i]->SetText(Buffer);
     }
     
-    // Explicitly call the Glui2 render last
     GluiHandle->Render();
-    
+
     // 强制渲染，交换前后台缓冲区
     glFlush();
     glutSwapBuffers();
@@ -133,7 +162,6 @@ void Render() {
 
 // 重新缩放视口
 void Reshape(int NewWidth, int NewHeight) {
-	// Apply needed glut viewport updates
 	glViewport(0, 0, NewWidth, NewHeight);
 }
 
@@ -170,16 +198,16 @@ void DialogSave(g2Controller* Caller) {
     Dialog.Show();
     
     // 得到结果
-    char* String;
-    int Result = (int) Dialog.GetInput(&String);
-    const char* d = "/U";
-    if (Result == 0) {
-        Mat result;
-        inverse_dft.convertTo(result, CV_8UC3, 255);
-        char* s = strstr(String, d);
-        imwrite(s, result);
-    }
-    delete[] String;
+//    char* String;
+//    int Result = (int) Dialog.GetInput(&String);
+//    const char* d = "/U";
+//    if (Result == 0) {
+//        Mat result;
+//        inverse_dft.convertTo(result, CV_8UC3, 255);
+//        char* s = strstr(String, d);
+//        imwrite(s, result);
+//    }
+//    delete[] String;
 }
 
 // 转化为灰度图像并显示直方图
@@ -404,13 +432,45 @@ void InitGlui2() {
     RenderingOptions[1] = "2. Point-rendering";
     RenderingOptions[2] = "3. Surface-rendering";
     
-    StyleController = GluiHandle->AddDropDown(20, 400, RenderingOptions, 3);
+    StyleController = GluiHandle->AddDropDown(20, 450, RenderingOptions, 3);
     StyleController->SetWidth(175);
     
-    /*** 控制图形的变换 ***/
+    /*** 控制 2D 图形的变换***/
+    for (int i = 0; i < 4; i++) {
+        // 设置控件的位置和宽度
+        Transformation2DSliders[i] = GluiHandle->AddSpinner(20, 200 + i * 25, g2SpinnerType_Float);
+        Transformation2DSliders[i]->SetWidth(80);
+        
+        // 设置每次点击改变的大小
+        Transformation2DSliders[i]->SetIncrement(1.0f);
+        if (i == 3) {
+            Transformation2DSliders[i]->SetIncrement(0.1f);
+            Transformation2DSliders[i]->SetFloat(1.0f);
+        }
+        
+        // 设置标题
+        if (i == 0)
+            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "XTranslation");
+        else if (i == 1)
+            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "YTranslation");
+        else if (i == 2)
+            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Rotate");
+        else
+            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Scale");
+        TranslationLabels[i]->SetColor(0, 0, 0);
+    }
+    
+    /*** 设置 2D 图形的参数 ***/
+    const char* graph2DOptions[2];
+    graph2DOptions[0] = "1. Triangle";
+    graph2DOptions[1] = "2. Square";
+    GraphController = GluiHandle->AddDropDown(20, 400, graph2DOptions, 2);
+    GraphController->SetWidth(175);
+    
+    /*** 控制 3D 图形的变换 ***/
     for (int i = 0; i < 3; i++) {
         // 设置控件的位置和宽度
-        PositionSliders[i] = GluiHandle->AddSpinner(20, 200 + i * 25, g2SpinnerType_Float);
+        PositionSliders[i] = GluiHandle->AddSpinner(20, 300 + i * 25, g2SpinnerType_Float);
         PositionSliders[i]->SetWidth(80);
         
         // 设置每次点击改变的大小
@@ -423,16 +483,13 @@ void InitGlui2() {
         
         // 设置标题
         if (i == 0)
-            PositionLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Distance");
+            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Distance");
         else if (i ==1)
-            PositionLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Pitch");
+            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Pitch");
         else
-            PositionLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Yaw");
+            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Yaw");
         PositionLabels[i]->SetColor(0, 0, 0);
     }
-    
-    /*** 设置 2D 图形的参数 ***/
-    
     
     /*** 设置 3D 图形的参数 ***/
     
