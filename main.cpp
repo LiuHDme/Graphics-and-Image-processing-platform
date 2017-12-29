@@ -54,6 +54,82 @@ Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
 
 /*** 全局函数 ***/
 
+// Liang-Barsky 裁剪算法
+int LBLineClipTest(float p, float q, float &umax, float &umin) {
+    float r = 0.0;
+    if (p < 0.0) {
+        r = q / p;
+        if (r > umin) {
+            return 0;
+        }
+        else if (r > umax) {
+            umax = r;
+        }
+    }
+    else if (p > 0.0) {
+        r = q / p;
+        if (r < umax) {
+            return 0;
+        }
+        else if (r < umin) {
+            umin = r;
+        }
+    }
+    else if (q < 0.0) {
+        return 0;
+    }
+    return 1;
+}
+
+// 使用 LB 裁剪算法
+void LBLineClip(float xwl, float xwr, float ywb, float ywt, float &x1, float &y1, float &x2, float &y2) {
+    float umax, umin, deltax, deltay;
+    deltax = x2 - x1;
+    deltay = y2 - y1;
+    umax = 0.0;
+    umin = 1.0;
+    if (LBLineClipTest(-deltax, x1 - xwl, umax, umin)) {
+        if (LBLineClipTest(deltax, xwr - x1, umax, umin)) {
+            if (LBLineClipTest(-deltay, y1 - ywb, umax, umin)) {
+                if (LBLineClipTest(deltay, ywt - y1, umax, umin)) {
+                    float xx1 = x1, yy1 = y1; // 避免因 x1，y1 已变化而导致 x2，y2 不正确
+                    x1 = x1 + umax * deltax;
+                    y1 = y1 + umax * deltay;
+                    x2 = xx1 + umin * deltax;
+                    y2 = yy1 + umin * deltay;
+                    if (x1 == x2 && y1 == y2) {
+                        // 不要点
+                        x1 = NULL;
+                        x2 = NULL;
+                        y1 = NULL;
+                        y2 = NULL;
+                    }
+                } else {
+                    x1 = NULL;
+                    x2 = NULL;
+                    y1 = NULL;
+                    y2 = NULL;
+                }
+            } else {
+                x1 = NULL;
+                x2 = NULL;
+                y1 = NULL;
+                y2 = NULL;
+            }
+        } else {
+            x1 = NULL;
+            x2 = NULL;
+            y1 = NULL;
+            y2 = NULL;
+        }
+    } else {
+        x1 = NULL;
+        x2 = NULL;
+        y1 = NULL;
+        y2 = NULL;
+    }
+}
+
 // 渲染
 void Render() {
 
@@ -81,25 +157,12 @@ void Render() {
     Rotate = Transformation2DSliders[2]->GetFloat();
     Scale = Transformation2DSliders[3]->GetFloat();
     
-    
     // 更新距离和倾斜度 (3D)
     Distance = PositionSliders[0]->GetFloat();
     Pitch = PositionSliders[1]->GetFloat();
     Yaw = PositionSliders[2]->GetFloat();
     
     glPushMatrix();
-    
-        // 设置裁减平面
-        if (ClippedContreller->GetSelectionIndex() == 1) {
-            glClipPlane(GL_CLIP_PLANE0, eqn1);
-            glEnable(GL_CLIP_PLANE0);
-        } else if (ClippedContreller->GetSelectionIndex() == 2) {
-            //设置裁减平面
-            glClipPlane(GL_CLIP_PLANE0, eqn2);
-            glEnable(GL_CLIP_PLANE0);
-        } else {
-            glDisable(GL_CLIP_PLANE0);
-        }
 
         // 设置颜色
         glColor3f(ColorSliders[0]->GetProgress(), ColorSliders[1]->GetProgress(), ColorSliders[2]->GetProgress());
@@ -111,6 +174,18 @@ void Render() {
             glRotatef(Pitch, 1, 0, 0);
             glRotatef(Yaw, 0, 1, 0);
             
+            // 设置裁减平面
+            if (ClippedContreller->GetSelectionIndex() == 1) {
+                glClipPlane(GL_CLIP_PLANE0, eqn1);
+                glEnable(GL_CLIP_PLANE0);
+            } else if (ClippedContreller->GetSelectionIndex() == 2) {
+                //设置裁减平面
+                glClipPlane(GL_CLIP_PLANE0, eqn2);
+                glEnable(GL_CLIP_PLANE0);
+            } else {
+                glDisable(GL_CLIP_PLANE0);
+            }
+            
             // 改变渲染方式
             if(StyleController->GetSelectionIndex() == 0)
                 glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -118,12 +193,12 @@ void Render() {
                 glPolygonMode(GL_FRONT_AND_BACK, GL_POINT);
             else
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        
+
             // 绘制 3D 图形
             glutSolidTeapot(3);
-        
+
         } else {
-            
+
             // 重新设置位置，不产生 3D 效果
             gluLookAt(0, 0, 100, 0, 0, 0, 0, 1, 0);
             
@@ -132,13 +207,23 @@ void Render() {
             glRotatef(Rotate, 0, 0, 1);
             glScalef(Scale, Scale, 1);
             
+            float x1 = -10, y1 = 0, x2 = 10, y2 = 0, x3 = 0, y3 = 10;
+            
+            if (ClippedContreller->GetSelectionIndex() == 1) {
+                
+            } else if (ClippedContreller->GetSelectionIndex() == 2) {
+                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x1, y1, x2, y2);
+                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x2, y2, x3, y3);
+                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x1, y1, x3, y3);
+            }
+            
             // 绘制 2D 图形
             glBegin(GL_LINE_LOOP);
-                glVertex2i(-10, 0);
-                glVertex2i(10, 0);
-                glVertex2i(0, 10);
+                glVertex2f(x1, y1);
+                glVertex2f(x2, y2);
+                glVertex2f(x3, y3);
             glEnd();
-
+            
         }
     
     glPopMatrix();
@@ -172,9 +257,6 @@ void Quit(g2Controller* Caller) {
 
 // 实施 Cohen－Sutherland 线段裁剪算法
 void Clipping1(g2Controller* Caller) {}
-
-// 实施 Liang-Barsky 裁剪算法
-void Clipping2(g2Controller* Caller) {}
 
 /*** 弹窗的回调函数 ***/
 void DialogOpen(g2Controller* Caller) {
