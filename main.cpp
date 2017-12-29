@@ -4,6 +4,7 @@
 #include <opencv2/opencv.hpp>
 #include <Glui2/glui2.h>
 #include <GLUT/glut.h>
+#include <vector>
 #include <math.h>
 #include <iostream>
 
@@ -52,7 +53,93 @@ g2DropDown* GraphController = NULL;
 // 图像，依次为：原图、灰度图、直方图均衡化后的图、傅里叶变换后的图（无法直接查看）、反傅里叶变换后的图
 Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
 
+// 裁剪窗口的位置
+float xwl = -5, xwr = 5, ywb = -5, ywt = 5;
+
+// CS 算法中的区域码
+typedef int OutCode;
+
+const int INSIDE = 0; // 0000
+const int LEFT = 1;   // 0001
+const int RIGHT = 2;  // 0010
+const int BOTTOM = 4; // 0100
+const int TOP = 8;    // 1000
+
 /*** 全局函数 ***/
+
+// 计算区域码
+OutCode ComputeOutCode(double x, double y) {
+    OutCode code;
+    code = INSIDE;          // initialised as being inside of clip window
+    
+    if (x < xwl)           // to the left of clip window
+        code |= LEFT;
+    else if (x > xwr)      // to the right of clip window
+        code |= RIGHT;
+    if (y < ywb)           // below the clip window
+        code |= BOTTOM;
+    else if (y > ywt)      // above the clip window
+        code |= TOP;
+    
+    return code;
+}
+
+// CS 算法
+void CSLineClip(double x0, double y0, double x1, double y1) {
+    // 计算两条线段的区域码
+    OutCode outcode0 = ComputeOutCode(x0, y0);
+    OutCode outcode1 = ComputeOutCode(x1, y1);
+    bool accept = false;
+    
+    while (true) {
+        if (!(outcode0 | outcode1)) {
+            //相或为0，接受并且退出循环
+            accept = true;
+            break;
+        } else if (outcode0 & outcode1) {
+            // 相与为1，拒绝且退出循环
+            break;
+        } else {
+            double x, y;
+            
+            //找出在界外的点
+            OutCode outcodeOut = outcode0 ? outcode0 : outcode1;
+            
+            // 找出和边界相交的点
+            // 使用点斜式 y = y0 + slope * (x - x0), x = x0 + (1 / slope) * (y - y0)
+            if (outcodeOut & TOP) {           // point is above the clip rectangle
+                x = x0 + (x1 - x0) * (ywt - y0) / (y1 - y0);
+                y = ywt;
+            } else if (outcodeOut & BOTTOM) { // point is below the clip rectangle
+                x = x0 + (x1 - x0) * (ywb - y0) / (y1 - y0);
+                y = ywb;
+            } else if (outcodeOut & RIGHT) {  // point is to the right of clip rectangle
+                y = y0 + (y1 - y0) * (xwr - x0) / (x1 - x0);
+                x = xwr;
+            } else if (outcodeOut & LEFT) {   // point is to the left of clip rectangle
+                y = y0 + (y1 - y0) * (xwl - x0) / (x1 - x0);
+                x = xwl;
+            }
+            
+            if (outcodeOut == outcode0) {
+                x0 = x;
+                y0 = y;
+                outcode0 = ComputeOutCode(x0, y0);
+            } else {
+                x1 = x;
+                y1 = y;
+                outcode1 = ComputeOutCode(x1, y1);
+            }
+        }
+    }
+    if (accept) {
+        // 绘制 2D 图形
+        glBegin(GL_LINE_LOOP);
+            glVertex2f(x0, y0);
+            glVertex2f(x1, y1);
+        glEnd();
+    }
+}
 
 // Liang-Barsky 裁剪算法
 int LBLineClipTest(float p, float q, float &umax, float &umin) {
@@ -82,52 +169,28 @@ int LBLineClipTest(float p, float q, float &umax, float &umin) {
 }
 
 // 使用 LB 裁剪算法
-void LBLineClip(float xwl, float xwr, float ywb, float ywt, float &x1, float &y1, float &x2, float &y2) {
+void LBLineClip(float x1, float y1, float x2, float y2) {
     float umax, umin, deltax, deltay;
     deltax = x2 - x1;
     deltay = y2 - y1;
     umax = 0.0;
     umin = 1.0;
-    if (LBLineClipTest(-deltax, x1 - xwl, umax, umin)) {
-        if (LBLineClipTest(deltax, xwr - x1, umax, umin)) {
-            if (LBLineClipTest(-deltay, y1 - ywb, umax, umin)) {
+    if (LBLineClipTest(-deltax, x1 - xwl, umax, umin))
+        if (LBLineClipTest(deltax, xwr - x1, umax, umin))
+            if (LBLineClipTest(-deltay, y1 - ywb, umax, umin))
                 if (LBLineClipTest(deltay, ywt - y1, umax, umin)) {
                     float xx1 = x1, yy1 = y1; // 避免因 x1，y1 已变化而导致 x2，y2 不正确
                     x1 = x1 + umax * deltax;
                     y1 = y1 + umax * deltay;
                     x2 = xx1 + umin * deltax;
                     y2 = yy1 + umin * deltay;
-                    if (x1 == x2 && y1 == y2) {
-                        // 不要点
-                        x1 = NULL;
-                        x2 = NULL;
-                        y1 = NULL;
-                        y2 = NULL;
-                    }
-                } else {
-                    x1 = NULL;
-                    x2 = NULL;
-                    y1 = NULL;
-                    y2 = NULL;
+                    
+                    // 绘制 2D 图形
+                    glBegin(GL_LINES);
+                        glVertex2f(x1, y1);
+                        glVertex2f(x2, y2);
+                    glEnd();
                 }
-            } else {
-                x1 = NULL;
-                x2 = NULL;
-                y1 = NULL;
-                y2 = NULL;
-            }
-        } else {
-            x1 = NULL;
-            x2 = NULL;
-            y1 = NULL;
-            y2 = NULL;
-        }
-    } else {
-        x1 = NULL;
-        x2 = NULL;
-        y1 = NULL;
-        y2 = NULL;
-    }
 }
 
 // 渲染
@@ -169,10 +232,6 @@ void Render() {
 
         // 根据用户的选择绘制图形
         if (DimensionContreller->GetSelectionIndex() == 1) {
-            // 改变位置
-            gluLookAt(-10.0f * Distance, 4 * Distance, -5.0f * Distance, 0, 0, 0, 0, 1, 0);
-            glRotatef(Pitch, 1, 0, 0);
-            glRotatef(Yaw, 0, 1, 0);
             
             // 设置裁减平面
             if (ClippedContreller->GetSelectionIndex() == 1) {
@@ -185,6 +244,11 @@ void Render() {
             } else {
                 glDisable(GL_CLIP_PLANE0);
             }
+            
+            // 改变位置
+            gluLookAt(-10.0f * Distance, 4 * Distance, -5.0f * Distance, 0, 0, 0, 0, 1, 0);
+            glRotatef(Pitch, 1, 0, 0);
+            glRotatef(Yaw, 0, 1, 0);
             
             // 改变渲染方式
             if(StyleController->GetSelectionIndex() == 0)
@@ -209,20 +273,29 @@ void Render() {
             
             float x1 = -10, y1 = 0, x2 = 10, y2 = 0, x3 = 0, y3 = 10;
             
-            if (ClippedContreller->GetSelectionIndex() == 1) {
-                
-            } else if (ClippedContreller->GetSelectionIndex() == 2) {
-                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x1, y1, x2, y2);
-                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x2, y2, x3, y3);
-                LBLineClip(-5 - XTranslation, 5 - XTranslation, -5, 5, x1, y1, x3, y3);
-            }
+            xwl = -5 - XTranslation;
+            xwr = 5 - XTranslation;
+            ywb = -5 - YTranslation;
+            ywt = 5 - YTranslation;
             
-            // 绘制 2D 图形
-            glBegin(GL_LINE_LOOP);
-                glVertex2f(x1, y1);
-                glVertex2f(x2, y2);
-                glVertex2f(x3, y3);
-            glEnd();
+            if (ClippedContreller->GetSelectionIndex() == 1) {
+                // CS 裁剪
+                CSLineClip(x1, y1, x2, y2);
+                CSLineClip(x2, y2, x3, y3);
+                CSLineClip(x1, y1, x3, y3);
+            } else if (ClippedContreller->GetSelectionIndex() == 2) {
+                // LB 裁剪
+                LBLineClip(x1, y1, x2, y2);
+                LBLineClip(x2, y2, x3, y3);
+                LBLineClip(x1, y1, x3, y3);
+            } else {
+                // 绘制 2D 图形
+                glBegin(GL_LINE_LOOP);
+                    glVertex2f(x1, y1);
+                    glVertex2f(x2, y2);
+                    glVertex2f(x3, y3);
+                glEnd();
+            }
             
         }
     
@@ -415,7 +488,7 @@ void dft(g2Controller* Caller) {
     int r = butterWorth_filter.rows;
     int c = butterWorth_filter.cols;
 
-    double D = 10;    // 通带半径
+    double D = 100;    // 通带半径
     double n_ButterWorth = 1.0/2;  // 巴特沃斯滤波器的系数
     
     // 根据公式进行计算
@@ -489,14 +562,14 @@ void InitGlui2() {
     ClippedOptions[1] = "2. Cohen-Sutherland";
     ClippedOptions[2] = "3. Liang-Barsky";
     
-    ClippedContreller = GluiHandle->AddRadioGroup(20, 40, ClippedOptions, 3);
+    ClippedContreller = GluiHandle->AddRadioGroup(20, 120, ClippedOptions, 3);
     
     /*** 选择 2D 图形或 3D 图形 ***/
     const char* Options[2];
-    Options[0] = "1. 2D";
-    Options[1] = "2. 3D";
+    Options[0] = "2D";
+    Options[1] = "3D";
     
-    DimensionContreller = GluiHandle->AddRadioGroup(20, 120, Options, 2);
+    DimensionContreller = GluiHandle->AddRadioGroup(20, 40, Options, 2);
     
     /*** 颜色滑尺与标题 ***/
     for (int i = 0; i < 3; i++) {
@@ -504,7 +577,7 @@ void InitGlui2() {
         ColorSliders[i] = GluiHandle->AddSlider(20, 520 + i * 25);
         ColorSliders[i]->SetWidth(170);
         
-        ColorLabels[i] = GluiHandle->AddLabel(200, 518 + i * 25, "Color R/G/B");
+        ColorLabels[i] = GluiHandle->AddLabel(200, 520 + i * 25, "Color R/G/B");
         ColorLabels[i]->SetColor(0, 0, 0);
     }
     
