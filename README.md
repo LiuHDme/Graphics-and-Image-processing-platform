@@ -1,3 +1,3 @@
 # Graphics-and-Image-processing-platform
 
-![](https://ws2.sinaimg.cn/large/006tKfTcgy1fn1gfl76chj31kw0ti75b.jpg)
+![image.png](http://upload-images.jianshu.io/upload_images/4933688-709e9d11890eca5b.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
