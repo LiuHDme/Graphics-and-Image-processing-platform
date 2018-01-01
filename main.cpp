@@ -4,7 +4,6 @@
 #include <opencv2/opencv.hpp>
 #include <Glui2/glui2.h>
 #include <GLUT/glut.h>
-#include <vector>
 #include <math.h>
 #include <iostream>
 
@@ -23,13 +22,13 @@ Glui2* GluiHandle = NULL;
 // 2D 或 3D 图形的选择按钮
 g2RadioGroup* DimensionContreller = NULL;
 
-// 渲染方式
-// 0 - 点, 1 - 线, 2 - 平面
-g2DropDown* StyleController = NULL;
-
 // 距离 (0) and 斜度 (1, 2)
 g2Spinner* PositionSliders[3];
 g2Label* PositionLabels[3];     // 标题
+
+// 渲染方式
+// 0 - 点, 1 - 线, 2 - 平面
+g2DropDown* StyleController = NULL;
 
 // 平移、旋转和缩放
 g2Spinner* Transformation2DSliders[4];
@@ -47,14 +46,18 @@ g2Label* ColorLabels[3];
 // 裁剪控制按钮
 g2RadioGroup* ClippedContreller = NULL;
 
-// 2D 图形参数控件
-g2DropDown* GraphController = NULL;
+// 裁剪窗口大小
+g2Spinner* ClippedWindow = NULL;
+
+// 图形参数控件
+g2DropDown* Graph2DController = NULL;
+g2DropDown* Graph3DController = NULL;
 
 // 图像，依次为：原图、灰度图、直方图均衡化后的图、傅里叶变换后的图（无法直接查看）、反傅里叶变换后的图
 Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
 
 // 裁剪窗口的位置
-float xwl = -5, xwr = 5, ywb = -5, ywt = 5;
+float xwl, xwr, ywb, ywt;
 
 // CS 算法中的区域码
 typedef int OutCode;
@@ -233,6 +236,9 @@ void Render() {
         // 根据用户的选择绘制图形
         if (DimensionContreller->GetSelectionIndex() == 1) {
             
+            // 改变观察位置
+            gluLookAt(Distance, 4 * Distance, 10.0f * Distance, 0, 0, 0, 0, 1, 0);
+            
             // 设置裁减平面
             if (ClippedContreller->GetSelectionIndex() == 1) {
                 glClipPlane(GL_CLIP_PLANE0, eqn1);
@@ -245,8 +251,6 @@ void Render() {
                 glDisable(GL_CLIP_PLANE0);
             }
             
-            // 改变位置
-            gluLookAt(-10.0f * Distance, 4 * Distance, -5.0f * Distance, 0, 0, 0, 0, 1, 0);
             glRotatef(Pitch, 1, 0, 0);
             glRotatef(Yaw, 0, 1, 0);
             
@@ -556,45 +560,48 @@ void InitGlui2() {
     GluiHandle = new Glui2("g2Default.cfg", NULL, Reshape);
     glutDisplayFunc(Render);
     
-    /*** 选择裁剪算法 ***/
-    const char* ClippedOptions[3];
-    ClippedOptions[0] = "1. no clipping";
-    ClippedOptions[1] = "2. Cohen-Sutherland";
-    ClippedOptions[2] = "3. Liang-Barsky";
+    /***设置选择图形或图像label***/
+    g2Label* Graph;
+    Graph= GluiHandle->AddLabel(30, 20, "G  R  A  P  H  :");
+    Graph->SetColor(0, 0, 0);
+    Graph->SetSize(2.0f);
     
-    ClippedContreller = GluiHandle->AddRadioGroup(20, 120, ClippedOptions, 3);
+    /***设置选择2D或3D绘图label***/
+    g2Label* chooseone;
+    chooseone= GluiHandle->AddLabel(30, 50, "Please choose 2D or 3D :");
+    chooseone->SetColor(0, 0, 255);
     
     /*** 选择 2D 图形或 3D 图形 ***/
     const char* Options[2];
     Options[0] = "2D";
     Options[1] = "3D";
     
-    DimensionContreller = GluiHandle->AddRadioGroup(20, 40, Options, 2);
+    DimensionContreller = GluiHandle->AddRadioGroup(30, 65, Options, 2);
     
-    /*** 颜色滑尺与标题 ***/
-    for (int i = 0; i < 3; i++) {
-        // 设置控件的位置和宽度
-        ColorSliders[i] = GluiHandle->AddSlider(20, 520 + i * 25);
-        ColorSliders[i]->SetWidth(170);
+    /***设置2D操作和3D操作label***/
+    g2Label* operation[2];
+    for(int i = 0; i < 2; i++) {
+      if (i == 0)
+          operation[i] = GluiHandle->AddLabel(30, 130, "2D Operation:");
+      else
+          operation[i] = GluiHandle->AddLabel(180,130, "3D Operation:");
         
-        ColorLabels[i] = GluiHandle->AddLabel(200, 520 + i * 25, "Color R/G/B");
-        ColorLabels[i]->SetColor(0, 0, 0);
+      operation[i]->SetColor(0, 0, 255);
     }
-    
-    /*** 渲染方式 ***/
-    const char* RenderingOptions[3];
-    RenderingOptions[0] = "1. Line-rendering";
-    RenderingOptions[1] = "2. Point-rendering";
-    RenderingOptions[2] = "3. Surface-rendering";
-    
-    StyleController = GluiHandle->AddDropDown(20, 450, RenderingOptions, 3);
-    StyleController->SetWidth(175);
+
+    /*** 设置 2D 图形的参数 ***/
+    const char* graph2DOptions[2];
+    graph2DOptions[0] = "1. Triangle";
+    graph2DOptions[1] = "2. Square";
+    Graph2DController = GluiHandle->AddDropDown(30, 140, graph2DOptions, 2);
+    Graph2DController->SetWidth(145);
     
     /*** 控制 2D 图形的变换***/
     for (int i = 0; i < 4; i++) {
         // 设置控件的位置和宽度
-        Transformation2DSliders[i] = GluiHandle->AddSpinner(20, 200 + i * 25, g2SpinnerType_Float);
-        Transformation2DSliders[i]->SetWidth(80);
+            Transformation2DSliders[i] = GluiHandle->AddSpinner(30, 190+i*30, g2SpinnerType_Float);
+        
+        Transformation2DSliders[i]->SetWidth(60);
         
         // 设置每次点击改变的大小
         Transformation2DSliders[i]->SetIncrement(1.0f);
@@ -605,28 +612,37 @@ void InitGlui2() {
         
         // 设置标题
         if (i == 0)
-            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "XTranslation");
+            TranslationLabels[i] = GluiHandle->AddLabel(95, 195, "XTranslation");
         else if (i == 1)
-            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "YTranslation");
+            TranslationLabels[i] = GluiHandle->AddLabel(95, 225, "YTranslation");
         else if (i == 2)
-            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Rotate");
+            TranslationLabels[i] = GluiHandle->AddLabel(95, 255, "Rotate");
         else
-            TranslationLabels[i] = GluiHandle->AddLabel(115, 205 + i * 25, "Scale");
+            TranslationLabels[i] = GluiHandle->AddLabel(95, 285, "Scale");
         TranslationLabels[i]->SetColor(0, 0, 0);
     }
     
-    /*** 设置 2D 图形的参数 ***/
-    const char* graph2DOptions[2];
-    graph2DOptions[0] = "1. Triangle";
-    graph2DOptions[1] = "2. Square";
-    GraphController = GluiHandle->AddDropDown(20, 400, graph2DOptions, 2);
-    GraphController->SetWidth(175);
+    /*** 设置 3D 图形的参数 ***/
+    const char* graph3DOptions[2];
+    graph3DOptions[0] = "1. Triangular Pyramid";
+    graph3DOptions[1] = "2. Tea Pot";
+    Graph3DController = GluiHandle->AddDropDown(180, 140, graph3DOptions, 2);
+    Graph3DController->SetWidth(145);
+    
+    /*** 渲染方式 ***/
+    const char* RenderingOptions[3];
+    RenderingOptions[0] = "1. Line-rendering";
+    RenderingOptions[1] = "2. Point-rendering";
+    RenderingOptions[2] = "3. Surface-rendering";
+    
+    StyleController = GluiHandle->AddDropDown(180, 282, RenderingOptions, 3);
+    StyleController->SetWidth(145);
     
     /*** 控制 3D 图形的变换 ***/
     for (int i = 0; i < 3; i++) {
         // 设置控件的位置和宽度
-        PositionSliders[i] = GluiHandle->AddSpinner(20, 300 + i * 25, g2SpinnerType_Float);
-        PositionSliders[i]->SetWidth(80);
+        PositionSliders[i] = GluiHandle->AddSpinner(180, 190 + i * 30, g2SpinnerType_Float);
+        PositionSliders[i]->SetWidth(60);
         
         // 设置每次点击改变的大小
         if (i == 0) {
@@ -638,35 +654,113 @@ void InitGlui2() {
         
         // 设置标题
         if (i == 0)
-            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Distance");
+            PositionLabels[i] = GluiHandle->AddLabel(245, 195 , "Distance");
         else if (i ==1)
-            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Pitch");
+            PositionLabels[i] = GluiHandle->AddLabel(245, 225 , "Pitch");
         else
-            PositionLabels[i] = GluiHandle->AddLabel(115, 305 + i * 25, "Yaw");
+            PositionLabels[i] = GluiHandle->AddLabel(245, 255 , "Yaw");
         PositionLabels[i]->SetColor(0, 0, 0);
     }
     
-    /*** 设置 3D 图形的参数 ***/
+    /***设置2D操作和3D操作label***/
+    g2Label* operation1;
+    operation1= GluiHandle->AddLabel(30, 340, "2D & 3D Operation:");
+    operation1->SetColor(0, 0, 255);
+
+    /*** 选择裁剪算法 ***/
+    g2Label* ClippingAlgorithm;
+    ClippingAlgorithm = GluiHandle->AddLabel(30, 360, "Please choose a clipping algorithm:");
+    ClippingAlgorithm->SetColor(0, 0, 180);
     
+    const char* ClippedOptions[3];
+    ClippedOptions[0] = "1. no clipping";
+    ClippedOptions[1] = "2. Cohen-Sutherland / 3D First";
+    ClippedOptions[2] = "3. Liang-Barsky / 3D Second";
+    
+    ClippedContreller = GluiHandle->AddRadioGroup(30, 380, ClippedOptions, 3);
+    
+    /***设置裁剪窗口大小***/
+    ClippedWindow=GluiHandle->AddSpinner(30, 430 , g2SpinnerType_Float);
+    g2Label* SizeofWindow;
+    SizeofWindow=GluiHandle->AddLabel(100, 435 ,"Size of Clipping window");
+    SizeofWindow->SetColor(0,0,0);
+    
+    /*** 颜色滑尺与标题 ***/
+    g2Label* SetColor;
+    SetColor = GluiHandle->AddLabel(30, 470, "Please set the color:");
+    SetColor->SetColor(0, 0, 180);
+    
+    for (int i = 0; i < 3; i++) {
+        // 设置控件的位置和宽度
+        ColorSliders[i] = GluiHandle->AddSlider(30, 490 + i * 25);
+        ColorSliders[i]->SetWidth(190);
+        
+        ColorLabels[i] = GluiHandle->AddLabel(230, 490 + i * 25, "Color R/G/B");
+        ColorLabels[i]->SetColor(0, 0, 0);
+    }
+    
+    /***设置选择图像label***/
+    g2Label* Picture;
+    Picture= GluiHandle->AddLabel(WindowWidth-120, 20, "I   M   A   G   E   ");
+    Picture->SetColor(0, 0, 0);
+    Picture->SetSize(2.0f);
+    
+    /***打开图像label***/
+    g2Label* open;
+    open= GluiHandle->AddLabel(WindowWidth-170, 50, "Please Open a Picture :");
+    open->SetColor(0, 0, 255);
     
     /*** 读取图像和保存图像 ***/
-    GluiHandle->AddButton(WindowWidth - 100, 40, "1. Open File... ", DialogOpen);
-    GluiHandle->AddButton(WindowWidth - 100, 60, "2. Save File... ", DialogSave);
+    GluiHandle->AddButton(WindowWidth - 180, 65, "1.        Open File... ", DialogOpen)->SetWidth(145);
+    GluiHandle->AddButton(WindowWidth - 180, 85, "2.        Save File... ", DialogSave)->SetWidth(145);
+    
+    /***设置图像处理label***/
+    g2Label* ImageProcessing;
+    ImageProcessing= GluiHandle->AddLabel(WindowWidth-140, 120, "Image Operation :");
+    ImageProcessing->SetColor(0, 0, 255);
     
     /*** 转化为灰度图像 ***/
-    GluiHandle->AddButton(WindowWidth - 100, 100, "rgb2gray", transform2gray);
+    g2Button* ImageOperation[4];
+    for (int i = 0 ; i < 4 ; i++) {
+        if (i == 0)
+            ImageOperation[i] = GluiHandle->AddButton(WindowWidth - 180, 140, "rgb2gray", transform2gray);
     
     /*** 直方图均衡化 ***/
-    GluiHandle->AddButton(WindowWidth - 100, 140, "Equalize Hist", EqualizeHist);
-    
+        if (i == 1)
+            ImageOperation[i] = GluiHandle->AddButton(WindowWidth - 180, 160, "Equalize Hist", EqualizeHist);
+   
     /*** 离散傅里叶变换 ***/
-    GluiHandle->AddButton(WindowWidth - 100, 180, "DFT", dft);
+        if (i == 2)
+            ImageOperation[i] = GluiHandle->AddButton(WindowWidth - 180, 180, "DFT", dft);
     
     /*** 离散傅里叶反变换 ***/
-    GluiHandle->AddButton(WindowWidth - 100, 220, "IDFT", idft);
+        if (i == 3)
+            ImageOperation[i] = GluiHandle->AddButton(WindowWidth - 180, 200, "IDFT", idft);
+       
+    ImageOperation[i]->SetAlignment(g2Anchor_Center);
+    ImageOperation[i]->SetWidth(145);
+    }
+    
+    /***新年好！***/
+    g2Label* word[4];
+    for(int i = 0 ; i < 4 ; i++) {
+        if(i == 0)
+            word[i] = GluiHandle->AddLabel(WindowWidth - 160, 280, "H     A      P     P    Y");
+        else if(i == 1)
+            word[i] = GluiHandle->AddLabel(WindowWidth - 130, 340, "      N    E    W ");
+        else if(i == 2)
+            word[i] = GluiHandle->AddLabel(WindowWidth - 160, 400, "Y      E      A      R     !");
+        else
+            word[i] = GluiHandle->AddLabel(WindowWidth - 160, 460, "2   0   1   8     ^ _ ^");
+        word[i]->SetSize(4.0f);
+        word[i]->SetColor(255,0,0);
+    }
+    GluiHandle->AddLabel(WindowWidth / 2 - 68, WindowHeight - 30," LiuHDme  &  LiaoYaQing ")->SetColor(0,0,0);
     
     /*** 退出按钮 ***/
-    GluiHandle->AddButton(WindowWidth - 100, WindowHeight - 50, "   Quit   ", Quit);
+    g2Button* QuitButton;
+    QuitButton = GluiHandle->AddButton(WindowWidth - 100, WindowHeight - 50, "   Quit   ", Quit);
+    QuitButton->SetColor(255,0,0);
 }
 
 /*** 主函数 ***/

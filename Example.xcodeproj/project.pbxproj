@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		4838848C143405CA009A5F90 /* main.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 4838848B143405CA009A5F90 /* main.cpp */; };
 		4838848D143405DF009A5F90 /* default.png in CopyFiles */ = {isa = PBXBuildFile; fileRef = 48388488143405CA009A5F90 /* default.png */; };
-		4838848E143405DF009A5F90 /* g2Default.cfg in CopyFiles */ = {isa = PBXBuildFile; fileRef = 48388489143405CA009A5F90 /* g2Default.cfg */; };
-		4838848F143405DF009A5F90 /* g2Default.png in CopyFiles */ = {isa = PBXBuildFile; fileRef = 4838848A143405CA009A5F90 /* g2Default.png */; };
 		48388493143405EB009A5F90 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 48388492143405EB009A5F90 /* OpenGL.framework */; };
 		48388495143405EE009A5F90 /* GLUT.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 48388494143405EE009A5F90 /* GLUT.framework */; };
 		F030F0B91FF0E41C0065D120 /* Glui2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F030F0B81FF0E41C0065D120 /* Glui2.framework */; };
@@ -150,8 +148,6 @@
 			dstSubfolderSpec = 6;
 			files = (
 				4838848D143405DF009A5F90 /* default.png in CopyFiles */,
-				4838848E143405DF009A5F90 /* g2Default.cfg in CopyFiles */,
-				4838848F143405DF009A5F90 /* g2Default.png in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,12 +156,12 @@
 /* Begin PBXFileReference section */
 		4838847214340594009A5F90 /* Example */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = Example; sourceTree = BUILT_PRODUCTS_DIR; };
 		48388488143405CA009A5F90 /* default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = default.png; sourceTree = "<group>"; };
-		48388489143405CA009A5F90 /* g2Default.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = g2Default.cfg; sourceTree = "<group>"; };
-		4838848A143405CA009A5F90 /* g2Default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = g2Default.png; sourceTree = "<group>"; };
 		4838848B143405CA009A5F90 /* main.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = main.cpp; sourceTree = "<group>"; };
 		48388492143405EB009A5F90 /* OpenGL.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = OpenGL.framework; path = System/Library/Frameworks/OpenGL.framework; sourceTree = SDKROOT; };
 		48388494143405EE009A5F90 /* GLUT.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GLUT.framework; path = System/Library/Frameworks/GLUT.framework; sourceTree = SDKROOT; };
 		F030F0B81FF0E41C0065D120 /* Glui2.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Glui2.framework; path = ../../../../../../Library/Frameworks/Glui2.framework; sourceTree = "<group>"; };
+		F0B8B76E1FF6A58200C6F7DB /* g2Default.cfg */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = g2Default.cfg; sourceTree = "<group>"; };
+		F0B8B76F1FF6A58200C6F7DB /* g2Default.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = g2Default.png; sourceTree = "<group>"; };
 		F0E967811FF4CA7700DC49D5 /* libopencv_aruco.3.3.1.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_aruco.3.3.1.dylib; path = /usr/local/Cellar/opencv/3.3.1_1/lib/libopencv_aruco.3.3.1.dylib; sourceTree = "<absolute>"; };
 		F0E967821FF4CA7700DC49D5 /* libopencv_aruco.3.3.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_aruco.3.3.dylib; path = /usr/local/Cellar/opencv/3.3.1_1/lib/libopencv_aruco.3.3.dylib; sourceTree = "<absolute>"; };
 		F0E967831FF4CA7700DC49D5 /* libopencv_aruco.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libopencv_aruco.dylib; path = /usr/local/Cellar/opencv/3.3.1_1/lib/libopencv_aruco.dylib; sourceTree = "<absolute>"; };
@@ -455,9 +451,9 @@
 		48388486143405B5009A5F90 /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				F0B8B76E1FF6A58200C6F7DB /* g2Default.cfg */,
+				F0B8B76F1FF6A58200C6F7DB /* g2Default.png */,
 				48388488143405CA009A5F90 /* default.png */,
-				48388489143405CA009A5F90 /* g2Default.cfg */,
-				4838848A143405CA009A5F90 /* g2Default.png */,
 				4838848B143405CA009A5F90 /* main.cpp */,
 			);
 			name = Source;
