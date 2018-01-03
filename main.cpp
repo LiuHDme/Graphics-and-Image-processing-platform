@@ -53,8 +53,15 @@ g2Spinner* ClippedWindow = NULL;
 g2DropDown* Graph2DController = NULL;
 g2DropDown* Graph3DController = NULL;
 
-// 图像，依次为：原图、灰度图、直方图均衡化后的图、傅里叶变换后的图（无法直接查看）、反傅里叶变换后的图
-Mat pic, pic_gray, pic_equalized, dft_container, inverse_dft;
+// 图像
+Mat image,  // 原图
+    image_gray = Mat::zeros(1, 1, CV_8UC3), // 灰度图
+    gray_hist = Mat::zeros(1, 1, CV_8UC3),  // 灰度图的直方图
+    image_equalized = Mat::zeros(1, 1, CV_8UC3),  // 均衡化图
+    equalized_hist = Mat::zeros(1, 1, CV_8UC3),   // 均衡化直方图
+    dft_container = Mat::zeros(1, 1, CV_8UC3),    // 傅里叶变换图
+    dft_container_filtered = Mat::zeros(1, 1, CV_8UC3), // 滤波后的傅里叶变换图
+    inverse_dft = Mat::zeros(1, 1, CV_8UC3);      // 傅里叶反变换图
 
 // 裁剪窗口的位置
 float xwl, xwr, ywb, ywt;
@@ -262,8 +269,12 @@ void Render() {
             else
                 glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-            // 绘制 3D 图形
-            glutSolidTeapot(3);
+            if (Graph3DController->GetSelectionIndex() == 0)
+                // 三棱锥
+                glutSolidTetrahedron();
+            else
+                // 茶壶
+                glutSolidTeapot(3);
 
         } else {
 
@@ -275,30 +286,56 @@ void Render() {
             glRotatef(Rotate, 0, 0, 1);
             glScalef(Scale, Scale, 1);
             
-            float x1 = -10, y1 = 0, x2 = 10, y2 = 0, x3 = 0, y3 = 10;
+            xwl = (-ClippedWindow->GetFloat() - XTranslation) / Scale;
+            xwr = (ClippedWindow->GetFloat() - XTranslation) / Scale;
+            ywb = (-ClippedWindow->GetFloat() - YTranslation) / Scale;
+            ywt = (ClippedWindow->GetFloat() - YTranslation) / Scale;
             
-            xwl = -5 - XTranslation;
-            xwr = 5 - XTranslation;
-            ywb = -5 - YTranslation;
-            ywt = 5 - YTranslation;
-            
-            if (ClippedContreller->GetSelectionIndex() == 1) {
-                // CS 裁剪
-                CSLineClip(x1, y1, x2, y2);
-                CSLineClip(x2, y2, x3, y3);
-                CSLineClip(x1, y1, x3, y3);
-            } else if (ClippedContreller->GetSelectionIndex() == 2) {
-                // LB 裁剪
-                LBLineClip(x1, y1, x2, y2);
-                LBLineClip(x2, y2, x3, y3);
-                LBLineClip(x1, y1, x3, y3);
+            if (Graph2DController->GetSelectionIndex() == 0) {
+                // 三角形
+                float x1 = -20, y1 = 0, x2 = 20, y2 = 0, x3 = 0, y3 = 20;
+                if (ClippedContreller->GetSelectionIndex() == 1) {
+                    // CS 裁剪
+                    CSLineClip(x1, y1, x2, y2);
+                    CSLineClip(x2, y2, x3, y3);
+                    CSLineClip(x1, y1, x3, y3);
+                } else if (ClippedContreller->GetSelectionIndex() == 2) {
+                    // LB 裁剪
+                    LBLineClip(x1, y1, x2, y2);
+                    LBLineClip(x2, y2, x3, y3);
+                    LBLineClip(x1, y1, x3, y3);
+                } else {
+                    // 绘制 2D 图形
+                    glBegin(GL_LINE_LOOP);
+                        glVertex2f(x1, y1);
+                        glVertex2f(x2, y2);
+                        glVertex2f(x3, y3);
+                    glEnd();
+                }
             } else {
-                // 绘制 2D 图形
-                glBegin(GL_LINE_LOOP);
-                    glVertex2f(x1, y1);
-                    glVertex2f(x2, y2);
-                    glVertex2f(x3, y3);
-                glEnd();
+                // 矩形
+                float x1 = -20, y1 = 0, x2 = 20, y2 = 0, x3 = 20, y3 = 20, x4 = -20, y4 = 20;
+                if (ClippedContreller->GetSelectionIndex() == 1) {
+                    // CS 裁剪
+                    CSLineClip(x1, y1, x2, y2);
+                    CSLineClip(x2, y2, x3, y3);
+                    CSLineClip(x3, y3, x4, y4);
+                    CSLineClip(x4, y4, x1, y1);
+                } else if (ClippedContreller->GetSelectionIndex() == 2) {
+                    // LB 裁剪
+                    LBLineClip(x1, y1, x2, y2);
+                    LBLineClip(x2, y2, x3, y3);
+                    LBLineClip(x3, y3, x4, y4);
+                    LBLineClip(x4, y4, x1, y1);
+                } else {
+                    // 绘制 2D 图形
+                    glBegin(GL_LINE_LOOP);
+                        glVertex2f(x1, y1);
+                        glVertex2f(x2, y2);
+                        glVertex2f(x3, y3);
+                        glVertex2f(x4, y4);
+                    glEnd();
+                }
             }
             
         }
@@ -335,92 +372,58 @@ void Quit(g2Controller* Caller) {
 // 实施 Cohen－Sutherland 线段裁剪算法
 void Clipping1(g2Controller* Caller) {}
 
-/*** 弹窗的回调函数 ***/
-void DialogOpen(g2Controller* Caller) {
-    g2Dialog Dialog(g2DialogType_Open, "Open File...");
-    Dialog.Show();
-    
-    // 得到结果
-    char* String;
-    int Result = (int)Dialog.GetInput(&String);
-    printf("User's open-dialog result: %d (message: \"%s\")\n", Result, String);
-    if (Result == 0) {
-        pic = imread(String);
-        namedWindow("pic");
-        imshow("pic", pic);
-    }
-    delete[] String;
-}
-
-void DialogSave(g2Controller* Caller) {
-    g2Dialog Dialog(g2DialogType_Save, "Save File...", "jpg");
-    Dialog.Show();
-    
-    // 得到结果
-//    char* String;
-//    int Result = (int) Dialog.GetInput(&String);
-//    const char* d = "/U";
-//    if (Result == 0) {
-//        Mat result;
-//        inverse_dft.convertTo(result, CV_8UC3, 255);
-//        char* s = strstr(String, d);
-//        imwrite(s, result);
-//    }
-//    delete[] String;
-}
-
 // 转化为灰度图像并显示直方图
 void transform2gray(g2Controller* Caller) {
-    cvtColor(pic, pic_gray, COLOR_BGR2GRAY);
-    imshow("pic", pic_gray);
+    cvtColor(image, image_gray, COLOR_BGR2GRAY);
+    imshow("pic", image_gray);
     int bins = 256;
     int hist_size[] = {bins};
     float range[] = {0, 256};
     const float* ranges[] = {range};
     MatND hist;
     int channels[] = {0};
-    calcHist(&pic_gray, 1, channels, Mat(), hist, 1, hist_size, ranges, true, false );
+    calcHist(&image_gray, 1, channels, Mat(), hist, 1, hist_size, ranges, true, false );
     double max_val;
     minMaxLoc(hist, 0, &max_val, 0, 0);
     int scale = 2;
     int hist_height = 256;
-    Mat hist_img = Mat::zeros(hist_height,bins*scale, CV_8UC3);
+    gray_hist = Mat::zeros(hist_height,bins*scale, CV_8UC3);
     for(int i=0;i<bins;i++) {
         float bin_val = hist.at<float>(i);
         int intensity = cvRound(bin_val*hist_height/max_val);  //要绘制的高度
-        rectangle(hist_img, cv::Point(i*scale,hist_height-1),
+        rectangle(gray_hist, cv::Point(i*scale,hist_height-1),
                   cv::Point((i+1)*scale - 1, hist_height - intensity),
                   CV_RGB(255,255,255));
     }
     namedWindow("hist");
-    imshow("hist", hist_img);
+    imshow("hist", gray_hist);
 }
 
 // 显示均衡化后的图像和直方图
 void EqualizeHist(g2Controller* Caller) {
-    equalizeHist(pic_gray, pic_equalized);
-    imshow("equalized", pic_equalized);
+    equalizeHist(image_gray, image_equalized);
+    imshow("equalized", image_equalized);
     int bins = 256;
     int hist_size[] = {bins};
     float range[] = {0, 256};
     const float* ranges[] = {range};
     MatND hist;
     int channels[] = {0};
-    calcHist(&pic_equalized, 1, channels, Mat(), hist, 1, hist_size, ranges, true, false );
+    calcHist(&image_equalized, 1, channels, Mat(), hist, 1, hist_size, ranges, true, false );
     double max_val;
     minMaxLoc(hist, 0, &max_val, 0, 0);
     int scale = 2;
     int hist_height = 256;
-    Mat hist_img = Mat::zeros(hist_height,bins*scale, CV_8UC3);
+    equalized_hist = Mat::zeros(hist_height, bins*scale, CV_8UC3);
     for(int i=0;i<bins;i++) {
         float bin_val = hist.at<float>(i);
         int intensity = cvRound(bin_val*hist_height/max_val);  // 要绘制的高度
-        rectangle(hist_img, cv::Point(i*scale,hist_height-1),
+        rectangle(equalized_hist, cv::Point(i*scale,hist_height-1),
                   cv::Point((i+1)*scale - 1, hist_height - intensity),
                   CV_RGB(255,255,255));
     }
     namedWindow("equalizedHist");
-    imshow("equalizedHist", hist_img);
+    imshow("equalizedHist", equalized_hist);
 }
 
 // 交换象限
@@ -472,10 +475,10 @@ Mat visualDFT(Mat& dft_result) {
 // 离散傅里叶变换及巴特沃斯低通滤波
 void dft(g2Controller* Caller) {
     Mat padded; // 将输入图像延扩到最佳的尺寸
-    int m = getOptimalDFTSize(pic_gray.rows);
-    int n = getOptimalDFTSize(pic_gray.cols);
+    int m = getOptimalDFTSize(image_gray.rows);
+    int n = getOptimalDFTSize(image_gray.cols);
 
-    copyMakeBorder(pic_gray, padded, 0, m - pic_gray.rows, 0, n - pic_gray.cols, BORDER_CONSTANT, Scalar::all(0));  // 边缘填充 0
+    copyMakeBorder(image_gray, padded, 0, m - image_gray.rows, 0, n - image_gray.cols, BORDER_CONSTANT, Scalar::all(0));  // 边缘填充 0
     
     Mat planes[] = {Mat_<float>(padded), Mat::zeros(padded.size(), CV_32F)};    // planes 包含两个矩阵，一个是 padded 的复制矩阵，一个是大小和 padded 一样的空矩阵
     merge(planes, 2, dft_container); // 将 planes 中的两个矩阵合并成 dft_container 矩阵
@@ -512,17 +515,82 @@ void dft(g2Controller* Caller) {
     quadrantShift(butterWorth_filter, butterWorth_filter);
 
     // 进行巴特沃斯低通滤波
-    mulSpectrums(dft_container, butterWorth_filter, dft_container, DFT_ROWS);
+    mulSpectrums(dft_container, butterWorth_filter, dft_container_filtered, DFT_ROWS);
     
-    imshow("After ButterWorth Filter", visualDFT(dft_container));
+    imshow("After ButterWorth Filter", visualDFT(dft_container_filtered));
 }
 
 // 离散傅里叶反变换
 void idft(g2Controller* Caller) {
     // 离散傅里叶反变换
-    dft(dft_container, inverse_dft, DFT_INVERSE | DFT_REAL_OUTPUT);
+    dft(dft_container_filtered, inverse_dft, DFT_INVERSE | DFT_REAL_OUTPUT);
     normalize(inverse_dft, inverse_dft, 0, 1, CV_MINMAX);
     imshow("idft", inverse_dft);
+}
+
+/*** 弹窗的回调函数 ***/
+void DialogOpen(g2Controller* Caller) {
+    g2Dialog Dialog(g2DialogType_Open, "Open File...");
+    Dialog.Show();
+    
+    // 得到结果
+    char* String;
+    int Result = (int)Dialog.GetInput(&String);
+    printf("User's open-dialog result: %d (message: \"%s\")\n", Result, String);
+    if (Result == 0) {
+        image = imread(String);
+        namedWindow("pic");
+        imshow("pic", image);
+    }
+    delete[] String;
+}
+
+void DialogSave(g2Controller* Caller) {
+    g2Dialog Dialog(g2DialogType_Save, "Save File...", "jpg");
+    Dialog.Show();
+    
+    // 得到结果
+    char* String;
+    int Result = (int) Dialog.GetInput(&String);
+    if (Result == 0) {
+        string path = String;   // 保存原图的路径
+        string folder;  // 保存其他图片的文件夹，与 result 在同一文件夹下
+        path = path.erase(0, 7);
+        string originalPath = path;
+        
+        unsigned long i;
+        for (i = path.length(); i > 0; i--)
+            if (path[i - 1] == '/') {
+                folder = path.erase(i - 1, path.length() - 1);
+                break;
+            }
+        
+        imwrite(originalPath, image);   // 原图
+
+        if (image_gray.rows != 1)
+            imwrite(folder + "/1 gray.jpg", image_gray);    // 灰度图
+        if (gray_hist.rows != 1)
+            imwrite(folder + "/2 gray_hist.jpg", gray_hist);    // 灰度图的直方图
+        if (image_equalized.rows != 1)
+            imwrite(folder + "/3 image_equalized.jpg", image_equalized);    // 均衡化图
+        if (equalized_hist.rows != 1)
+            imwrite(folder + "/4 equalized_hist.jpg", equalized_hist);    // 均衡化直方图
+        Mat result_dft, result_dft_filtered, result_idft;
+        if (dft_container.rows != 1) {
+            visualDFT(dft_container).convertTo(result_dft, CV_8UC3, 255);    // 转换格式，便于保存
+            imwrite(folder + "/5 dft.jpg", result_dft);    // 傅里叶变换图
+        }
+        if (dft_container_filtered.rows != 1) {
+            visualDFT(dft_container_filtered).convertTo(result_dft_filtered, CV_8UC3, 255);    // 转换格式，便于保存
+            imwrite(folder + "/6 dft_filtered.jpg", result_dft_filtered);    // 滤波后的傅里叶变换图
+        }
+        if (inverse_dft.rows != 1) {
+            inverse_dft.convertTo(result_idft, CV_8UC3, 255);    // 转换格式，便于保存
+            imwrite(folder + "/7 idft.jpg", result_idft);    // 傅里叶反变换图
+        }
+        
+    }
+    delete[] String;
 }
 
 /*** 主函数和初始化函数 ***/
@@ -624,8 +692,8 @@ void InitGlui2() {
     
     /*** 设置 3D 图形的参数 ***/
     const char* graph3DOptions[2];
-    graph3DOptions[0] = "1. Triangular Pyramid";
-    graph3DOptions[1] = "2. Tea Pot";
+    graph3DOptions[0] = "1. Tetrahedron";
+    graph3DOptions[1] = "2. Teapot";
     Graph3DController = GluiHandle->AddDropDown(180, 140, graph3DOptions, 2);
     Graph3DController->SetWidth(145);
     
@@ -662,10 +730,10 @@ void InitGlui2() {
         PositionLabels[i]->SetColor(0, 0, 0);
     }
     
-    /***设置2D操作和3D操作label***/
-    g2Label* operation1;
-    operation1= GluiHandle->AddLabel(30, 340, "2D & 3D Operation:");
-    operation1->SetColor(0, 0, 255);
+    /*** 设置2D操作和3D操作 ***/
+    g2Label* graphOperation;
+    graphOperation = GluiHandle->AddLabel(30, 340, "2D & 3D Operation:");
+    graphOperation->SetColor(0, 0, 255);
 
     /*** 选择裁剪算法 ***/
     g2Label* ClippingAlgorithm;
@@ -679,10 +747,12 @@ void InitGlui2() {
     
     ClippedContreller = GluiHandle->AddRadioGroup(30, 380, ClippedOptions, 3);
     
-    /***设置裁剪窗口大小***/
-    ClippedWindow=GluiHandle->AddSpinner(30, 430 , g2SpinnerType_Float);
+    /*** 设置裁剪窗口大小 ***/
+    ClippedWindow = GluiHandle->AddSpinner(30, 430 , g2SpinnerType_Float);
+    ClippedWindow->SetFloat(15);
+    ClippedWindow->SetIncrement(0.2f);
     g2Label* SizeofWindow;
-    SizeofWindow=GluiHandle->AddLabel(100, 435 ,"Size of Clipping window");
+    SizeofWindow = GluiHandle->AddLabel(100, 435 ,"Size of Clipping window");
     SizeofWindow->SetColor(0,0,0);
     
     /*** 颜色滑尺与标题 ***/
